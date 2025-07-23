@@ -31,7 +31,7 @@
                 </thead>
                 <tbody>
                     @forelse ($gastos as $gasto)
-                        <tr>
+                        <tr id="gasto-row-{{ $gasto->id_representativo }}">
                             <td>{{ $gasto->descripcion }}</td>
                             <td>${{ number_format($gasto->monto_total, 0, ',', '.') }}</td>
                             <td>${{ number_format($gasto->monto_cuota, 0, ',', '.') }}</td>
@@ -43,7 +43,8 @@
                                 <button class="btn btn-xs btn-default text-primary mx-1 shadow" title="Ver Detalle"
                                         data-toggle="modal" data-target="#modal-detalle-cuotas"
                                         data-cuotas='{{ $gasto->cuotas_detalle }}'
-                                        data-descripcion="{{ $gasto->descripcion }}">
+                                        data-descripcion="{{ $gasto->descripcion }}"
+                                        data-gasto-padre-id="{{ $gasto->id_representativo }}">
                                     <i class="fa fa-fw fa-eye"></i>
                                 </button>
                                 <a href="{{ route('gastos_tarjeta.edit', $gasto->id_representativo) }}" class="btn btn-xs btn-default text-warning mx-1 shadow" title="Editar">
@@ -96,27 +97,95 @@
 <script>
 $(document).ready(function() {
     $('#modal-detalle-cuotas').on('show.bs.modal', function (event) {
-        var button = $(event.relatedTarget); // Botón que activó el modal
-        var cuotas = button.data('cuotas'); // Extraer info de data-*
+        var button = $(event.relatedTarget); 
+        var gastoPadreId = button.data('gasto-padre-id');
+        var cuotas = button.data('cuotas');
         var descripcion = button.data('descripcion');
 
         var modal = $(this);
-        modal.find('#modal-descripcion-compra').text('Compra: ' + descripcion);
+        modal.find('.modal-title').text('Detalle de Cuotas: ' + descripcion);
 
-        var listaCuotas = modal.find('#lista-cuotas');
-        listaCuotas.empty(); // Limpiar contenido anterior
+        var modalBody = modal.find('.modal-body');
+        modalBody.empty(); 
 
+        var list = $('<ul class="list-group"></ul>');
         cuotas.forEach(function(cuota) {
-            var estadoIcono = cuota.pagada
-                ? '<i class="fas fa-check-circle text-success mr-2"></i><span class="text-success font-weight-bold">Pagada</span>'
-                : '<i class="fas fa-clock text-warning mr-2"></i><span class="text-muted">Pendiente</span>';
+            const selectId = `estado-select-${cuota.id}`;
+            const options = ['Pendiente', 'Pagada', 'No Pagada'];
+            let selectOptions = '';
+            options.forEach(opt => {
+                selectOptions += `<option value="${opt}" ${cuota.estado === opt ? 'selected' : ''}>${opt}</option>`;
+            });
 
-            var item = '<li class="list-group-item d-flex justify-content-between align-items-center">' +
-                       '<span><strong>Cuota ' + cuota.numero_cuota + '</strong> - ' + cuota.fecha + '</span>' +
-                       '<span>$' + new Intl.NumberFormat("de-DE").format(cuota.monto_cuota) + '</span>' +
-                       '<span>' + estadoIcono + '</span>' +
-                       '</li>';
-            listaCuotas.append(item);
+            var listItem = `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong>Cuota ${cuota.numero_cuota}</strong> - ${new Date(cuota.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                    </span>
+                    <strong>$${new Intl.NumberFormat('es-CL').format(cuota.monto_cuota)}</strong>
+                    <select class="form-control form-control-sm estado-select" data-gasto-id="${cuota.id}" data-gasto-padre-id="${gastoPadreId}" data-estado-original="${cuota.estado}" style="width: 120px;">
+                        ${selectOptions}
+                    </select>
+                </li>`;
+            list.append(listItem);
+        });
+
+        modalBody.append(list);
+    });
+
+    // Listener para los cambios en el estado de la cuota
+    $(document).on('change', '.estado-select', function() {
+        const select = $(this);
+        const gastoId = select.data('gasto-id');
+        const gastoPadreId = select.data('gasto-padre-id');
+        const nuevoEstado = select.val();
+
+        // Deshabilitar el select mientras se procesa
+        select.prop('disabled', true);
+
+        fetch(`/gastos_tarjeta/${gastoId}/estado`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            body: JSON.stringify({ estado: nuevoEstado })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Si el guardado fue exitoso, actualizamos el estado original para el futuro
+                select.data('estado-original', nuevoEstado);
+
+                // Actualizar el contador de progreso en la tabla principal
+                // Usamos el gastoPadreId para encontrar la fila correcta y actualizar el badge
+                const progressBadge = $(`#gasto-row-${gastoPadreId}`).find('.badge');
+                if (progressBadge.length) {
+                    progressBadge.text(data.progreso_texto);
+
+                    // Actualizar los datos del botón para que el modal refleje el cambio
+                    const button = progressBadge.closest('tr').find('button[data-toggle="modal"]');
+                    const cuotas = button.data('cuotas');
+                    const cuotaIndex = cuotas.findIndex(c => c.id === gastoId);
+                    if (cuotaIndex > -1) {
+                        cuotas[cuotaIndex].estado = nuevoEstado;
+                        button.data('cuotas', cuotas);
+                    }
+                }
+
+            } else {
+                Swal.fire('Error', data.message || 'No se pudo actualizar el estado.', 'error');
+                select.val(select.data('estado-original')); // Revertir al estado original guardado
+            }
+        })
+        .catch(error => {
+            console.error('Error de red:', error);
+            Swal.fire('Error', 'Ocurrió un error de red. Por favor, inténtalo de nuevo.', 'error');
+            select.val(select.data('estado-original')); // Revertir al estado original guardado
+        })
+        .finally(() => {
+            // Siempre volver a habilitar el select
+            select.prop('disabled', false);
         });
     });
 });

@@ -318,30 +318,24 @@ return [
             'icon' => 'fas fa-fw fa-tachometer-alt',
         ],
         [
-            'text'    => 'Gestión',
-            'icon'    => 'fas fa-fw fa-cogs',
-            'submenu' => [
-                [
-                    'text' => 'Categorías',
-                    'route'  => 'categorias.index',
-                    'icon' => 'fas fa-fw fa-tags',
-                ],
-                [
-                    'text' => 'Ingresos',
-                    'route'  => 'ingresos.index',
-                    'icon' => 'fas fa-fw fa-arrow-up',
-                ],
-                [
-                    'text' => 'Gastos',
-                    'route'  => 'gastos.index',
-                    'icon' => 'fas fa-fw fa-arrow-down',
-                ],
-                [
-                    'text' => 'Tarjetas de Crédito',
-                    'route'  => 'tarjetas.index',
-                    'icon' => 'fas fa-fw fa-credit-card',
-                ],
-            ],
+            'text' => 'Categorías',
+            'route'  => 'categorias.index',
+            'icon' => 'fas fa-fw fa-tags',
+        ],
+        [
+            'text' => 'Ingresos',
+            'route'  => 'ingresos.index',
+            'icon' => 'fas fa-fw fa-arrow-up',
+        ],
+        [
+            'text' => 'Gastos',
+            'route'  => 'gastos.index',
+            'icon' => 'fas fa-fw fa-arrow-down',
+        ],
+        [
+            'text' => 'Tarjetas de Crédito',
+            'route'  => 'tarjetas.index',
+            'icon' => 'fas fa-fw fa-credit-card',
         ],
     ],
 

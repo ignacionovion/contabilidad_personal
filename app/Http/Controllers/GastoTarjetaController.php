@@ -30,12 +30,11 @@ class GastoTarjetaController extends Controller
         $hoy = Carbon::now();
 
         // Procesar cada grupo para crear un resumen de la compra
-        $gastosParaVista = $gastosPorCompra->map(function ($cuotas, $gasto_padre_id) use ($hoy) {
+        $gastosParaVista = $gastosPorCompra->map(function ($cuotas, $gasto_padre_id) {
             $primeraCuota = $cuotas->first();
 
-            $cuotasPagadas = $cuotas->filter(function ($cuota) use ($hoy) {
-                return Carbon::parse($cuota->fecha)->isPast();
-            })->count();
+            // Contar cuotas por su estado real
+            $cuotasPagadas = $cuotas->where('estado', 'Pagada')->count();
 
             return (object) [
                 'id_representativo' => $gasto_padre_id,
@@ -45,12 +44,13 @@ class GastoTarjetaController extends Controller
                 'total_cuotas' => $primeraCuota->total_cuotas,
                 'cuotas_pagadas' => $cuotasPagadas,
                 'fecha_compra' => $cuotas->min('fecha'),
-                'cuotas_detalle' => $cuotas->map(function($c) use ($hoy) {
+                'cuotas_detalle' => $cuotas->map(function($c) {
                     return [
+                        'id'           => $c->id,
                         'numero_cuota' => $c->numero_cuota,
-                        'monto_cuota' => $c->monto_cuota,
-                        'fecha' => Carbon::parse($c->fecha)->format('d/m/Y'),
-                        'pagada' => Carbon::parse($c->fecha)->isPast(),
+                        'monto_cuota'  => $c->monto_cuota,
+                        'fecha'        => $c->fecha,
+                        'estado'       => $c->estado,
                     ];
                 })->values()->toJson()
             ];
@@ -101,6 +101,8 @@ class GastoTarjetaController extends Controller
 
         for ($i = 1; $i <= $totalCuotas; $i++) {
             $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
+            $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
+            $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
 
             $gasto = GastoTarjeta::create([
                 'tarjeta_credito_id' => $tarjeta->id,
@@ -109,8 +111,9 @@ class GastoTarjetaController extends Controller
                 'monto_cuota' => $montoCuotaActual,
                 'numero_cuota' => $i,
                 'total_cuotas' => $totalCuotas,
-                'fecha' => $fechaCompra->copy()->addMonths($i - 1),
+                'fecha' => $fechaCuota,
                 'gasto_padre_id' => $gastoPadre ? $gastoPadre->id : null,
+                'estado' => $estadoCuota,
             ]);
 
             if ($i == 1) {
@@ -201,6 +204,8 @@ class GastoTarjetaController extends Controller
 
         for ($i = 1; $i <= $totalCuotas; $i++) {
             $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
+            $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
+            $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
 
             $nuevoGasto = GastoTarjeta::create([
                 'user_id' => Auth::id(),
@@ -209,8 +214,9 @@ class GastoTarjetaController extends Controller
                 'numero_cuota' => $i,
                 'total_cuotas' => $totalCuotas,
                 'monto_cuota' => $montoCuotaActual,
-                'fecha' => $fechaCompra->copy()->addMonths($i - 1),
+                'fecha' => $fechaCuota,
                 'gasto_padre_id' => $gastoPadre ? $gastoPadre->id : null,
+                'estado' => $estadoCuota,
             ]);
 
             if ($i == 1) {
@@ -222,6 +228,36 @@ class GastoTarjetaController extends Controller
 
         return redirect()->route('gastos_tarjeta.index', ['tarjeta' => $tarjetaId])
                          ->with('success', 'Gasto actualizado con éxito.');
+    }
+
+    /**
+     * Actualiza el estado de una cuota específica.
+     */
+    public function updateEstado(Request $request, GastoTarjeta $gasto)
+    {
+        // Comprobación de propiedad manual y explícita
+        if (!$gasto->tarjetaCredito || $gasto->tarjetaCredito->user_id !== auth()->id()) {
+            return response()->json(['success' => false, 'message' => 'Acción no autorizada.'], 403);
+        }
+
+        $validated = $request->validate([
+            'estado' => ['required', 'string', \Illuminate\Validation\Rule::in(['Pagada', 'Pendiente', 'No Pagada'])],
+        ]);
+
+        $gasto->estado = $validated['estado'];
+        $gasto->save();
+
+        // Recalcular el progreso para la interfaz
+        $gastosDelPadre = GastoTarjeta::where('gasto_padre_id', $gasto->gasto_padre_id)->get();
+        $cuotasPagadas = $gastosDelPadre->where('estado', 'Pagada')->count();
+        $totalCuotas = $gastosDelPadre->count();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Estado actualizado con éxito.',
+            'nuevo_estado' => $gasto->estado,
+            'progreso_texto' => "$cuotasPagadas / $totalCuotas pagadas"
+        ]);
     }
 
     /**

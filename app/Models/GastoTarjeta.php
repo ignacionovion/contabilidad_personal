@@ -22,6 +22,7 @@ class GastoTarjeta extends Model
         'total_cuotas',
         'fecha',
         'gasto_padre_id',
+        'estado',
     ];
 
     protected $casts = [
@@ -35,6 +36,6 @@ class GastoTarjeta extends Model
 
     public function tarjetaCredito()
     {
-        return $this->belongsTo(TarjetaCredito::class);
+        return $this->belongsTo(TarjetaCredito::class, 'tarjeta_credito_id', 'id');
     }
 }

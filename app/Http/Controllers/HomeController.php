@@ -69,6 +69,42 @@ class HomeController extends Controller
             ];
         });
 
-        return view('home', compact('totalIngresos', 'totalGastos', 'balance', 'resumenTarjetas'));
+        // --- Lógica para el gráfico de gastos mensuales ---
+    $gastosMensualesData = [];
+    $mesesLabels = [];
+
+    for ($i = 11; $i >= 0; $i--) {
+        $fecha = \Carbon\Carbon::now()->subMonths($i);
+        $mes = $fecha->month;
+        $ano = $fecha->year;
+
+        // Gastos generales del mes
+        $gastosGeneralesMes = Gasto::where('user_id', $user->id)
+            ->whereYear('fecha', $ano)
+            ->whereMonth('fecha', $mes)
+            ->sum('monto');
+
+        // Cuotas de tarjeta del mes
+        $gastosTarjetaMes = GastoTarjeta::where('user_id', $user->id)
+            ->whereYear('fecha', $ano)
+            ->whereMonth('fecha', $mes)
+            ->sum('monto_cuota');
+        
+        $totalGastosMes = $gastosGeneralesMes + $gastosTarjetaMes;
+
+        // Guardar datos para el gráfico
+        $gastosMensualesData[] = $totalGastosMes;
+        // Usamos isoFormat para obtener el nombre del mes en español
+        $mesesLabels[] = ucfirst($fecha->isoFormat('MMM YYYY'));
+    }
+
+    return view('home', compact(
+        'totalIngresos', 
+        'totalGastos', 
+        'balance', 
+        'resumenTarjetas',
+        'gastosMensualesData',
+        'mesesLabels'
+    ));
     }
 }

@@ -47,6 +47,23 @@
         </div>
     </div>
 
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card">
+                <div class="card-header border-0">
+                    <div class="d-flex justify-content-between">
+                        <h3 class="card-title">Balance de Gastos (Últimos 12 Meses)</h3>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="position-relative mb-4">
+                        <canvas id="gastos-mensuales-chart" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <hr>
 
     <h2>Resumen de Tarjetas de Crédito</h2>
@@ -88,3 +105,89 @@
         @endforelse
     </div>
 @stop
+
+@push('js')
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    $(function () {
+        'use strict'
+
+        var ticksStyle = {
+            fontColor: '#495057',
+            fontStyle: 'bold'
+        }
+
+        var mode = 'index'
+        var intersect = true
+
+        var labels = @json($mesesLabels);
+        var data = @json($gastosMensualesData);
+
+        var $salesChart = $('#gastos-mensuales-chart')
+        var salesChart = new Chart($salesChart, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Gastos Totales',
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)',
+                        borderColor: '#007bff',
+                        pointRadius: 3,
+                        pointBackgroundColor: '#007bff',
+                        pointBorderColor: '#007bff',
+                        data: data
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                tooltips: {
+                    mode: mode,
+                    intersect: intersect,
+                    callbacks: {
+                        label: function(tooltipItem, data) {
+                            var label = data.datasets[tooltipItem.datasetIndex].label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(tooltipItem.yLabel);
+                            return label;
+                        }
+                    }
+                },
+                hover: {
+                    mode: mode,
+                    intersect: intersect
+                },
+                legend: {
+                    display: false
+                },
+                scales: {
+                    yAxes: [{
+                        gridLines: {
+                            display: true,
+                        },
+                        ticks: $.extend({
+                            beginAtZero: true,
+                            callback: function (value) {
+                                if (value >= 1000) {
+                                    return '$' + (value / 1000) + 'k';
+                                }
+                                return '$' + value;
+                            }
+                        }, ticksStyle)
+                    }],
+                    xAxes: [{
+                        display: true,
+                        gridLines: {
+                            display: false
+                        },
+                        ticks: ticksStyle
+                    }]
+                }
+            }
+        })
+    })
+</script>
+@endpush
