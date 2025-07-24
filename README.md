@@ -1,28 +1,38 @@
 # Sistema de Contabilidad Personal
 
-Aplicación web desarrollada con Laravel para gestionar las finanzas personales. Permite a los usuarios registrar sus ingresos y gastos, clasificarlos y visualizar un resumen financiero en un dashboard intuitivo.
+Aplicación web robusta y moderna desarrollada con **Laravel 12** para una gestión financiera personal completa e intuitiva. Permite a los usuarios registrar y clasificar sus ingresos y gastos, gestionar deudas de tarjetas de crédito y visualizar su salud financiera a través de un dashboard interactivo.
 
 ## Características Principales
 
--   **Autenticación de Usuarios:** Sistema seguro de registro e inicio de sesión.
--   **Dashboard Financiero:** Vista principal con un resumen del total de ingresos, gastos y el balance actual. Incluye una sección dedicada al resumen de tarjetas de crédito.
--   **Gestión de Categorías:** CRUD completo para crear, leer, actualizar y eliminar categorías de gastos.
--   **Gestión de Ingresos y Gastos:** CRUD completo para registrar y gestionar todos los movimientos financieros.
--   **Módulo de Tarjetas de Crédito:**
+-   **Autenticación Segura:** Sistema de registro e inicio de sesión basado en Laravel.
+
+-   **Dashboard Interactivo:**
+    -   Vista principal con resúmenes claros del **total de ingresos, gastos y el balance actual**.
+    -   **Gráfico de Tendencias:** Un gráfico de líneas muestra la evolución de los gastos totales durante los últimos 12 meses, permitiendo identificar patrones y estacionalidades.
+    -   Resumen detallado del estado de todas las tarjetas de crédito.
+
+-   **Módulos de Gestión Financiera:**
+    -   **Categorías:** CRUD completo para personalizar las categorías de ingresos y gastos.
+    -   **Ingresos y Gastos Generales:** Registro y gestión de todos los movimientos financieros que no pertenecen a tarjetas de crédito.
+
+-   **Módulo Avanzado de Tarjetas de Crédito:**
     -   **Gestión de Múltiples Tarjetas:** Añade, edita y elimina todas tus tarjetas de crédito.
-    -   **Registro de Gastos con Cuotas:** Registra compras y especifica el número de cuotas. El sistema calcula y genera automáticamente cada pago mensual.
-    -   **Seguimiento Detallado:** Visualiza todos los gastos (cuotas) de cada tarjeta, ordenados por fecha.
-    -   **Resumen en Dashboard:** El panel principal muestra la deuda del mes, la deuda total y el cupo disponible para cada tarjeta.
--   **Localización en Español:** Toda la interfaz y los mensajes están en español.
--   **Formato de Moneda CLP:** Todos los montos se muestran en formato de Peso Chileno (ej: `$15.000`).
--   **Experiencia de Usuario Mejorada:**
-    -   Los campos de monto en los formularios formatean automáticamente los números a medida que se escribe.
-    -   Las tablas de datos se cargan de forma suave y sin parpadeos, e incluyen funcionalidades de ordenación y búsqueda.
+    -   **Registro de Compras en Cuotas:** Registra compras y especifica el número de cuotas. El sistema calcula y genera automáticamente cada pago mensual.
+    -   **Gestión Detallada de Cuotas:**
+        -   **Modal Interactivo:** Visualiza el detalle completo de cuotas (pagadas y pendientes) para cada compra con un solo clic.
+        -   **Actualización de Estado en Tiempo Real:** Cambia el estado de cada cuota ('Pagada', 'Pendiente') directamente desde el modal. Los cambios se guardan al instante sin necesidad de recargar la página.
+        -   **Seguimiento de Progreso:** La vista principal muestra un contador de progreso (ej: `3/6 cuotas pagadas`) para cada compra, ofreciendo una visión clara de las deudas pendientes.
+    -   **Resumen en Dashboard:** El panel principal consolida la deuda del mes, la deuda total y el cupo disponible para cada tarjeta.
+
+-   **Experiencia de Usuario (UX) Optimizada:**
+    -   **Navegación Simplificada:** El menú lateral ha sido rediseñado para ofrecer acceso directo a todas las secciones, eliminando submenús y mejorando la usabilidad.
+    -   **Formato de Moneda Automático:** Los campos de monto formatean los números a formato de moneda (CLP) mientras se escribe.
+    -   **Interfaz en Español:** Toda la aplicación está localizada para hispanohablantes.
 
 ## Stack Tecnológico
 
 -   **Backend:** PHP 8.x, Laravel 12.x
--   **Frontend:** AdminLTE 3, Bootstrap, JavaScript
+-   **Frontend:** AdminLTE 3, Bootstrap, JavaScript, Chart.js
 -   **Base de Datos:** PostgreSQL
 -   **Gestión de Dependencias:** Composer (PHP), NPM (JavaScript)
 
@@ -40,8 +50,8 @@ Sigue estos pasos para configurar el proyecto en tu entorno local:
 
 1.  **Clonar el repositorio:**
     ```bash
-    git clone <URL_DEL_REPOSITORIO>
-    cd personal-accounting-app
+    git clone https://github.com/ignacionovion/contabilidad_personal.git
+    cd contabilidad_personal
     ```
 
 2.  **Instalar dependencias de PHP:**
@@ -98,10 +108,9 @@ La aplicación estará disponible en `http://127.0.0.1:8000`.
 
 ## Uso
 
-1.  **Registro:** Accede a la ruta `/register` para crear una nueva cuenta de usuario.
-2.  **Login:** Accede a la ruta `/login` para iniciar sesión.
-3.  **Navegación:** Utiliza el menú lateral para navegar entre el Dashboard y los módulos de Categorías, Ingresos, Gastos y Tarjetas de Crédito.
-4.  **Gestión de Tarjetas:**
-    -   Ve a la sección "Tarjetas de Crédito" para añadir tus tarjetas.
-    -   Una vez creada una tarjeta, haz clic en "Ver Gastos" para añadir compras en cuotas.
-    -   El Dashboard te mostrará un resumen consolidado del estado de tus tarjetas.
+1.  **Registro y Login:** Crea una cuenta en `/register` e inicia sesión en `/login`.
+2.  **Navegación:** Utiliza el menú lateral de acceso rápido para moverte entre el Dashboard y los módulos de gestión.
+3.  **Gestión de Tarjetas y Cuotas:**
+    -   En "Tarjetas de Crédito", añade tus tarjetas.
+    -   Haz clic en "Ver Gastos" para añadir compras y definir las cuotas.
+    -   En la lista de gastos, haz clic en "Ver Detalle" para abrir el modal y gestionar el estado de cada cuota individualmente.

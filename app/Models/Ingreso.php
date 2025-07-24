@@ -10,7 +10,7 @@ class Ingreso extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['monto', 'descripcion', 'user_id', 'fecha'];
+    protected $fillable = ['monto', 'descripcion', 'fecha', 'user_id', 'categoria_id', 'es_sueldo', 'activo'];
 
     public function user(): BelongsTo
     {

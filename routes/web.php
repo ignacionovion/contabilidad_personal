@@ -5,6 +5,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\CategoriaController;
 use App\Http\Controllers\IngresoController;
 use App\Http\Controllers\GastoController;
+use App\Http\Controllers\GastoRecurrenteController;
 use App\Http\Controllers\TarjetaCreditoController;
 use App\Http\Controllers\GastoTarjetaController;
 
@@ -17,8 +18,12 @@ Auth::routes();
 Route::middleware(['auth'])->group(function () {
     Route::get('/inicio', [HomeController::class, 'index'])->name('home');
     Route::resource('categorias', CategoriaController::class);
-    Route::resource('ingresos', IngresoController::class);
+    Route::resource('ingresos', IngresoController::class)->middleware('auth');
+    Route::post('ingresos/sueldo', [IngresoController::class, 'guardarSueldo'])->name('ingresos.guardarSueldo')->middleware('auth');
+    Route::post('ingresos/actualizar-sueldo', [IngresoController::class, 'actualizarSueldo'])->name('ingresos.actualizarSueldo')->middleware('auth');
     Route::resource('gastos', GastoController::class);
+    Route::post('gastos/recurrente', [GastoController::class, 'storeRecurrente'])->name('gastos.storeRecurrente');
+    Route::resource('gastos-recurrentes', GastoRecurrenteController::class);
     Route::resource('tarjetas', TarjetaCreditoController::class)->names('tarjetas');
     Route::put('gastos_tarjeta/{gasto}/estado', [GastoTarjetaController::class, 'updateEstado'])->name('gastos_tarjeta.update_estado');
     // Rutas para gastos de tarjeta
@@ -31,4 +36,5 @@ Route::middleware(['auth'])->group(function () {
     Route::get('gastos_tarjeta/{gasto_padre_id}/edit', [GastoTarjetaController::class, 'edit'])->name('gastos_tarjeta.edit');
     Route::put('gastos_tarjeta/{gasto_padre_id}', [GastoTarjetaController::class, 'update'])->name('gastos_tarjeta.update');
     Route::delete('gastos_tarjeta/{gasto_padre_id}', [GastoTarjetaController::class, 'destroy'])->name('gastos_tarjeta.destroy');
+
 });

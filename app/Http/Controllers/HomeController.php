@@ -30,81 +30,93 @@ class HomeController extends Controller
     public function index()
     {
         $user = Auth::user();
+        $inicioMesActual = Carbon::now()->startOfMonth();
+
+        // --- CÁLCULOS PARA TARJETAS DE RESUMEN (TOTALES HISTÓRICOS O DEL MES) ---
         $totalIngresos = Ingreso::where('user_id', $user->id)->sum('monto');
-        $inicioMes = Carbon::now()->startOfMonth();
-
-        // Gastos generales (excluyendo tarjetas)
+        if ($user->sueldo_activo) {
+            $totalIngresos += $user->sueldo;
+        }
         $totalGastosGenerales = Gasto::where('user_id', $user->id)->sum('monto');
-
-        // Suma de las cuotas de tarjeta del mes actual
         $totalGastosTarjetaMes = GastoTarjeta::where('user_id', $user->id)
-            ->whereYear('fecha', $inicioMes->year)
-            ->whereMonth('fecha', $inicioMes->month)
+            ->whereYear('fecha', $inicioMesActual->year)
+            ->whereMonth('fecha', $inicioMesActual->month)
             ->sum('monto_cuota');
-
-        // Gasto total consolidado
         $totalGastos = $totalGastosGenerales + $totalGastosTarjetaMes;
         $balance = $totalIngresos - $totalGastos;
 
-        // Lógica para el resumen de tarjetas de crédito
+        // --- CÁLCULO RESUMEN TARJETAS DE CRÉDITO ---
         $tarjetas = TarjetaCredito::where('user_id', $user->id)->get();
-        $resumenTarjetas = $tarjetas->map(function ($tarjeta) {
-            $inicioMes = Carbon::now()->startOfMonth();
-
-            // Deuda del mes actual: suma de cuotas cuya fecha de pago es este mes.
-            $deudaMesActual = $tarjeta->gastos()->whereYear('fecha', $inicioMes->year)->whereMonth('fecha', $inicioMes->month)->sum('monto_cuota');
-
-            // Deuda total: suma de todas las cuotas pendientes (del mes actual en adelante).
-            $deudaTotal = $tarjeta->gastos()->where('fecha', '>=', $inicioMes)->sum('monto_cuota');
-
+        $resumenTarjetas = $tarjetas->map(function ($tarjeta) use ($inicioMesActual) {
+            $deudaMesActual = $tarjeta->gastos()->whereYear('fecha', $inicioMesActual->year)->whereMonth('fecha', $inicioMesActual->month)->sum('monto_cuota');
+            $deudaTotal = $tarjeta->gastos()->where('fecha', '>=', $inicioMesActual)->sum('monto_cuota');
             $cupoDisponible = $tarjeta->cupo_total - $deudaTotal;
-
             return (object) [
-                'id' => $tarjeta->id,
-                'nombre' => $tarjeta->nombre,
-                'cupo_total' => $tarjeta->cupo_total,
-                'deuda_mes_actual' => $deudaMesActual,
-                'deuda_total' => $deudaTotal,
-                'cupo_disponible' => $cupoDisponible,
+                'id' => $tarjeta->id, 'nombre' => $tarjeta->nombre, 'cupo_total' => $tarjeta->cupo_total,
+                'deuda_mes_actual' => $deudaMesActual, 'deuda_total' => $deudaTotal, 'cupo_disponible' => $cupoDisponible,
             ];
         });
 
-        // --- Lógica para el gráfico de gastos mensuales ---
-    $gastosMensualesData = [];
-    $mesesLabels = [];
+        // --- LÓGICA PARA GRÁFICOS (ÚLTIMOS 12 MESES) ---
+        $mesesLabels = [];
+        $balanceMensualData = [];
+        $gastosMensualesData = [];
 
-    for ($i = 11; $i >= 0; $i--) {
-        $fecha = \Carbon\Carbon::now()->subMonths($i);
-        $mes = $fecha->month;
-        $ano = $fecha->year;
+        for ($i = 11; $i >= 0; $i--) {
+            $fecha = Carbon::now()->subMonths($i);
+            $mes = $fecha->month;
+            $ano = $fecha->year;
 
-        // Gastos generales del mes
-        $gastosGeneralesMes = Gasto::where('user_id', $user->id)
-            ->whereYear('fecha', $ano)
-            ->whereMonth('fecha', $mes)
-            ->sum('monto');
+            // CÁLCULO INGRESOS DEL MES
+            $ingresosVariablesMes = Ingreso::where('user_id', $user->id)->whereYear('fecha', $ano)->whereMonth('fecha', $mes)->sum('monto');
+            $ingresosTotalesMes = $ingresosVariablesMes + ($user->sueldo_activo ? $user->sueldo : 0);
 
-        // Cuotas de tarjeta del mes
-        $gastosTarjetaMes = GastoTarjeta::where('user_id', $user->id)
-            ->whereYear('fecha', $ano)
-            ->whereMonth('fecha', $mes)
-            ->sum('monto_cuota');
-        
-        $totalGastosMes = $gastosGeneralesMes + $gastosTarjetaMes;
+            // CÁLCULO GASTOS DEL MES
+            $gastosGeneralesMes = Gasto::where('user_id', $user->id)->whereYear('fecha', $ano)->whereMonth('fecha', $mes)->sum('monto');
+            $gastosTarjetaMes = GastoTarjeta::where('user_id', $user->id)->whereYear('fecha', $ano)->whereMonth('fecha', $mes)->sum('monto_cuota');
+            $totalGastosMes = $gastosGeneralesMes + $gastosTarjetaMes;
 
-        // Guardar datos para el gráfico
-        $gastosMensualesData[] = $totalGastosMes;
-        // Usamos isoFormat para obtener el nombre del mes en español
-        $mesesLabels[] = ucfirst($fecha->isoFormat('MMM YYYY'));
-    }
+            // GUARDAR DATOS PARA GRÁFICOS
+            $mesesLabels[] = ucfirst($fecha->isoFormat('MMM YYYY'));
+            $balanceMensualData[] = $ingresosTotalesMes - $totalGastosMes;
+            $gastosMensualesData[] = $totalGastosMes;
+        }
 
-    return view('home', compact(
-        'totalIngresos', 
-        'totalGastos', 
-        'balance', 
-        'resumenTarjetas',
-        'gastosMensualesData',
-        'mesesLabels'
-    ));
+        // --- LÓGICA PARA GRÁFICO DE GASTOS DEL HOGAR (MÚLTIPLES LÍNEAS) ---
+        $gastosHogarDatasets = [];
+        $cuentasHogar = $user->gastosRecurrentes()->get();
+        $colores = [
+            'rgba(255, 99, 132, 0.7)', 'rgba(54, 162, 235, 0.7)', 'rgba(255, 206, 86, 0.7)',
+            'rgba(75, 192, 192, 0.7)', 'rgba(153, 102, 255, 0.7)', 'rgba(255, 159, 64, 0.7)'
+        ];
+        $colorIndex = 0;
+
+        foreach ($cuentasHogar as $cuenta) {
+            $datosCuenta = [];
+            for ($i = 11; $i >= 0; $i--) {
+                $fecha = Carbon::now()->subMonths($i);
+                $gastoMes = Gasto::where('user_id', $user->id)
+                    ->where('gasto_recurrente_id', $cuenta->id) // Búsqueda más precisa por ID
+                    ->whereYear('fecha', $fecha->year)
+                    ->whereMonth('fecha', $fecha->month)
+                    ->sum('monto');
+                $datosCuenta[] = $gastoMes;
+            }
+
+            $color = $colores[$colorIndex % count($colores)];
+            $gastosHogarDatasets[] = [
+                'label' => $cuenta->nombre,
+                'data' => $datosCuenta,
+                'borderColor' => $color,
+                'backgroundColor' => str_replace('0.7', '0.2', $color),
+                'fill' => true, 'pointRadius' => 3, 'pointBackgroundColor' => $color,
+            ];
+            $colorIndex++;
+        }
+
+        return view('home', compact(
+            'totalIngresos', 'totalGastos', 'balance', 'resumenTarjetas',
+            'mesesLabels', 'balanceMensualData', 'gastosMensualesData', 'gastosHogarDatasets'
+        ));
     }
 }

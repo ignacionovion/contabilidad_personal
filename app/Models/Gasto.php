@@ -10,7 +10,7 @@ class Gasto extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['monto', 'descripcion', 'categoria_id', 'user_id', 'fecha'];
+    protected $fillable = ['monto', 'descripcion', 'categoria_id', 'user_id', 'fecha', 'gasto_recurrente_id'];
 
     public function user(): BelongsTo
     {
@@ -20,5 +20,10 @@ class Gasto extends Model
     public function categoria(): BelongsTo
     {
         return $this->belongsTo(Categoria::class);
+    }
+
+    public function gastoRecurrente(): BelongsTo
+    {
+        return $this->belongsTo(GastoRecurrente::class, 'gasto_recurrente_id');
     }
 }

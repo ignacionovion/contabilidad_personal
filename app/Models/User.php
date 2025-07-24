@@ -23,6 +23,8 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'sueldo',
+        'sueldo_activo',
     ];
 
     /**
@@ -56,6 +58,11 @@ class User extends Authenticatable
     public function gastos(): HasMany
     {
         return $this->hasMany(Gasto::class);
+    }
+
+    public function gastosRecurrentes(): HasMany
+    {
+        return $this->hasMany(GastoRecurrente::class);
     }
 
     public function categorias(): HasMany

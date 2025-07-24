@@ -13,8 +13,11 @@ class IngresoController extends Controller
      */
     public function index()
     {
-        $ingresos = Ingreso::where('user_id', Auth::id())->get();
-        return view('ingresos.index', compact('ingresos'));
+        $user = auth()->user();
+        $sueldo = Ingreso::where('user_id', $user->id)->where('es_sueldo', true)->first();
+        $ingresos = Ingreso::where('user_id', $user->id)->where('es_sueldo', false)->orderBy('fecha', 'desc')->get();
+        
+        return view('ingresos.index', compact('ingresos', 'sueldo', 'user'));
     }
 
     /**
@@ -93,12 +96,50 @@ class IngresoController extends Controller
      */
     public function destroy(Ingreso $ingreso)
     {
-        if ($ingreso->user_id !== Auth::id()) {
-            abort(403);
-        }
-
         $ingreso->delete();
+        return redirect()->route('ingresos.index')->with('success', 'Ingreso eliminado con éxito');
+    }
 
-        return redirect()->route('ingresos.index')->with('success', 'Ingreso eliminado con éxito.');
+    public function guardarSueldo(Request $request)
+    {
+        $request->validate([
+            'monto' => 'required|string',
+        ]);
+
+        $monto = preg_replace('/[\$\.]/', '', $request->monto);
+
+        Ingreso::updateOrCreate(
+            ['user_id' => auth()->id(), 'es_sueldo' => true],
+            [
+                'monto' => $monto,
+                'descripcion' => 'Sueldo Fijo',
+                'activo' => $request->has('activo'),
+                'fecha' => now(), // Asignamos una fecha para consistencia
+                'categoria_id' => null // El sueldo no necesita categoría
+            ]
+        );
+
+        return redirect()->route('ingresos.index')->with('success', 'Sueldo guardado con éxito.');
+    }
+
+    /**
+     * Actualiza el sueldo del usuario.
+     */
+    public function actualizarSueldo(Request $request)
+    {
+        // Limpiar el monto de puntos y comas antes de validar
+        $sueldoLimpio = str_replace(['.', ','], '', $request->input('sueldo'));
+        $request->merge(['sueldo' => $sueldoLimpio]);
+
+        $request->validate([
+            'sueldo' => 'required|numeric|min:0',
+        ]);
+
+        $user = Auth::user();
+        $user->sueldo = $request->sueldo;
+        $user->sueldo_activo = $request->has('sueldo_activo');
+        $user->save();
+
+        return redirect()->route('ingresos.index')->with('success', 'Sueldo actualizado con éxito.');
     }
 }

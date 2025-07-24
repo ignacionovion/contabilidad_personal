@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Gasto;
 use App\Models\Categoria;
+use App\Models\GastoRecurrente;
 
 class GastoController extends Controller
 {
@@ -14,8 +15,18 @@ class GastoController extends Controller
      */
     public function index()
     {
-        $gastos = Gasto::with('categoria')->where('user_id', Auth::id())->get();
-        return view('gastos.index', compact('gastos'));
+        $gastos = Gasto::with('categoria')->where('user_id', Auth::id())->latest()->get();
+        $gastosRecurrentes = GastoRecurrente::where('user_id', Auth::id())->get();
+
+        // Obtener los nombres de las cuentas ya pagadas este mes
+        $gastosPagadosEsteMes = Gasto::where('user_id', Auth::id())
+            ->whereNotNull('gasto_recurrente_id')
+            ->whereYear('fecha', now()->year)
+            ->whereMonth('fecha', now()->month)
+            ->pluck('gasto_recurrente_id')
+            ->toArray();
+
+        return view('gastos.index', compact('gastos', 'gastosRecurrentes', 'gastosPagadosEsteMes'));
     }
 
     /**
@@ -110,5 +121,42 @@ class GastoController extends Controller
         $gasto->delete();
 
         return redirect()->route('gastos.index')->with('success', 'Gasto eliminado con éxito.');
+    }
+
+    public function storeRecurrente(Request $request)
+    {
+        $request->validate([
+            'monto' => 'required|numeric|min:0',
+            'gasto_recurrente_id' => 'required|exists:gastos_recurrentes,id,user_id,' . Auth::id(),
+        ]);
+
+        $gastoRecurrente = GastoRecurrente::find($request->gasto_recurrente_id);
+
+        // Verificar si ya existe un gasto para esta cuenta en el mes y año actual
+        $gastoExistente = Gasto::where('user_id', Auth::id())
+            ->where('gasto_recurrente_id', $request->gasto_recurrente_id)
+            ->whereYear('fecha', now()->year)
+            ->whereMonth('fecha', now()->month)
+            ->first();
+
+        if ($gastoExistente) {
+            return redirect()->route('gastos.index')->with('warning', 'El gasto de ' . $gastoRecurrente->nombre . ' ya fue registrado este mes.');
+        }
+
+        // Busca o crea una categoría 'Cuentas del Hogar' para el usuario
+        $categoria = Categoria::firstOrCreate(
+            ['user_id' => Auth::id(), 'nombre' => 'Cuentas del Hogar'],
+            ['descripcion' => 'Gastos fijos mensuales del hogar.']
+        );
+
+        Auth::user()->gastos()->create([
+            'monto' => $request->monto,
+            'descripcion' => $gastoRecurrente->nombre,
+            'categoria_id' => $categoria->id,
+            'fecha' => now(),
+            'gasto_recurrente_id' => $gastoRecurrente->id,
+        ]);
+
+        return redirect()->route('gastos.index')->with('success', 'Gasto de ' . $gastoRecurrente->nombre . ' registrado con éxito.');
     }
 }
