@@ -30,4 +30,10 @@ class TarjetaCredito extends Model
     {
         return $this->hasMany(GastoTarjeta::class);
     }
+
+    public function compras()
+    {
+        // Una "compra" es un gasto de tarjeta que no es una cuota, es decir, no tiene padre.
+        return $this->hasMany(GastoTarjeta::class, 'tarjeta_credito_id')->whereNull('gasto_padre_id');
+    }
 }

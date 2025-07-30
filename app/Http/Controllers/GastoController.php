@@ -7,15 +7,23 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Gasto;
 use App\Models\Categoria;
 use App\Models\GastoRecurrente;
+use Carbon\Carbon;
 
 class GastoController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+        public function index()
     {
-        $gastos = Gasto::with('categoria')->where('user_id', Auth::id())->latest()->get();
+        $gastos = Gasto::with('categoria')
+            ->where('user_id', Auth::id())
+            ->orderBy('fecha', 'desc')
+            ->get()
+            ->groupBy(function($gasto) {
+                return Carbon::parse($gasto->fecha)->translatedFormat('F Y');
+            });
+            
         $gastosRecurrentes = GastoRecurrente::where('user_id', Auth::id())->get();
 
         // Obtener los nombres de las cuentas ya pagadas este mes

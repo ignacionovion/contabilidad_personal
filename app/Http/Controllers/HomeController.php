@@ -33,7 +33,10 @@ class HomeController extends Controller
         $inicioMesActual = Carbon::now()->startOfMonth();
 
         // --- CÁLCULOS PARA TARJETAS DE RESUMEN (TOTALES HISTÓRICOS O DEL MES) ---
-        $totalIngresos = Ingreso::where('user_id', $user->id)->sum('monto');
+        $totalIngresos = Ingreso::where('user_id', $user->id)
+            ->whereMonth('fecha', Carbon::now()->month)
+            ->whereYear('fecha', Carbon::now()->year)
+            ->sum('monto');
         if ($user->sueldo_activo) {
             $totalIngresos += $user->sueldo;
         }

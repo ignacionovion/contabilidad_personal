@@ -301,9 +301,29 @@ return [
     'menu' => [
         // Navbar items:
         [
+            'type'         => 'navbar-search',
+            'text'         => 'search',
+            'topnav_right' => true,
+        ],
+        [
+            'type'         => 'fullscreen-widget',
+            'topnav_right' => true,
+        ],
+
+        // Sidebar items:
+        [
+            'type' => 'sidebar-menu-search',
+            'text' => 'search',
+        ],
+        [
             'text' => 'Dashboard',
             'route'  => 'home',
             'icon' => 'fas fa-fw fa-tachometer-alt',
+        ],
+        [
+            'text' => 'Categorías',
+            'route'  => 'categorias.index',
+            'icon' => 'fas fa-fw fa-tags',
         ],
         [
             'text' => 'Ingresos',
@@ -313,22 +333,17 @@ return [
         [
             'text' => 'Gastos',
             'route'  => 'gastos.index',
-            'icon' => 'fas fa-fw fa-shopping-cart',
+            'icon' => 'fas fa-fw fa-file-invoice-dollar',
         ],
         [
-            'text' => 'Cuentas del Hogar',
-            'route'  => 'gastos-recurrentes.index',
-            'icon' => 'fas fa-fw fa-home',
+            'text'  => 'Tarjetas de Crédito',
+            'route' => 'tarjetas.index',
+            'icon'  => 'fas fa-fw fa-credit-card',
         ],
         [
-            'text' => 'Tarjetas de Crédito',
-            'route'  => 'tarjetas.index',
-            'icon' => 'fas fa-fw fa-credit-card',
-        ],
-        [
-            'text' => 'Categorías',
-            'route'  => 'categorias.index',
-            'icon' => 'fas fa-fw fa-tags',
+            'text'  => 'Cuentas del Hogar',
+            'route' => 'gastos-recurrentes.index',
+            'icon'  => 'fas fa-fw fa-home',
         ],
     ],
 

@@ -52,33 +52,42 @@
 
 
 
-        <!-- Tarjeta de Ingresos Variables -->
-        <div class="row">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Ingresos Variables</h3>
-                        <div class="card-tools">
-                            <a href="{{ route('ingresos.create') }}" class="btn btn-success">Añadir Ingreso Variable</a>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        @if(session('success'))
-                            <div class="alert alert-success">
-                                {{ session('success') }}
-                            </div>
-                        @endif
-                        <table class="table table-bordered table-hover">
+    <!-- Sección de Ingresos Variables -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Ingresos Variables</h2>
+        <a href="{{ route('ingresos.create') }}" class="btn btn-success">Añadir Ingreso Variable</a>
+    </div>
+
+    @if(session('success'))
+        <div class="alert alert-success">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    <div class="accordion" id="accordionIngresos">
+        @forelse($ingresos as $mes => $ingresosDelMes)
+            <div class="card mb-2">
+                <div class="card-header" id="heading-{{ $loop->iteration }}">
+                    <h2 class="mb-0">
+                        <button class="btn btn-link btn-block text-left font-weight-bold" type="button" data-toggle="collapse" data-target="#collapse-{{ $loop->iteration }}" aria-expanded="{{ $loop->first ? 'true' : 'false' }}" aria-controls="collapse-{{ $loop->iteration }}">
+                            {{ ucfirst($mes) }}
+                        </button>
+                    </h2>
+                </div>
+
+                <div id="collapse-{{ $loop->iteration }}" class="collapse {{ $loop->first ? 'show' : '' }}" aria-labelledby="heading-{{ $loop->iteration }}" data-parent="#accordionIngresos">
+                    <div class="card-body p-0">
+                        <table class="table table-bordered table-hover mb-0">
                             <thead>
                                 <tr>
-                                    <th>Monto</th>
+                                    <th style="width: 20%;">Monto</th>
                                     <th>Descripción</th>
-                                    <th>Fecha</th>
-                                    <th>Acciones</th>
+                                    <th style="width: 15%;">Fecha</th>
+                                    <th style="width: 15%;">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @forelse($ingresos as $ingreso)
+                                @foreach($ingresosDelMes as $ingreso)
                                     <tr>
                                         <td>${{ number_format($ingreso->monto, 0, ',', '.') }}</td>
                                         <td>{{ $ingreso->descripcion }}</td>
@@ -92,17 +101,18 @@
                                             </form>
                                         </td>
                                     </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="4" class="text-center">No hay ingresos variables registrados.</td>
-                                    </tr>
-                                @endforelse
+                                @endforeach
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
-        </div>
+        @empty
+            <div class="alert alert-info">
+                No hay ingresos variables registrados.
+            </div>
+        @endforelse
+    </div>
     </div>
 @endsection
 

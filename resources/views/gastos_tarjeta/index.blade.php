@@ -36,7 +36,7 @@
                             <td>${{ number_format($gasto->monto_total, 0, ',', '.') }}</td>
                             <td>${{ number_format($gasto->monto_cuota, 0, ',', '.') }}</td>
                             <td>
-                                <span class="badge badge-info">{{ $gasto->cuotas_pagadas }} / {{ $gasto->total_cuotas }} pagadas</span>
+                                <span id="progreso-gasto-{{ $gasto->id_representativo }}" class="badge badge-info">{{ $gasto->cuotas_pagadas }} / {{ $gasto->total_cuotas }} pagadas</span>
                             </td>
                             <td>{{ \Carbon\Carbon::parse($gasto->fecha_compra)->format('d/m/Y') }}</td>
                             <td class="text-center">
@@ -47,10 +47,10 @@
                                         data-gasto-padre-id="{{ $gasto->id_representativo }}">
                                     <i class="fa fa-fw fa-eye"></i>
                                 </button>
-                                <a href="{{ route('gastos_tarjeta.edit', $gasto->id_representativo) }}" class="btn btn-xs btn-default text-warning mx-1 shadow" title="Editar">
+                                <a href="{{ route('gastos_tarjeta.edit', $gasto->id_representativo) }}" class="btn btn-sm btn-warning">Editar
                                     <i class="fa fa-fw fa-pen"></i>
                                 </a>
-                                <form action="{{ route('gastos_tarjeta.destroy', $gasto->id_representativo) }}" method="POST" class="d-inline">
+                                <form action="{{ route('gastos_tarjeta.destroy', $gasto->id_representativo) }}" method="POST" class="d-inline form-delete">
                                     @csrf
                                     @method('DELETE')
                                     <button type="submit" class="btn btn-xs btn-default text-danger mx-1 shadow" title="Eliminar" onclick="return confirm('¿Estás seguro de que quieres eliminar esta compra y todas sus cuotas?')">
@@ -99,7 +99,8 @@ $(document).ready(function() {
     $('#modal-detalle-cuotas').on('show.bs.modal', function (event) {
         var button = $(event.relatedTarget); 
         var gastoPadreId = button.data('gasto-padre-id');
-        var cuotas = button.data('cuotas');
+        // Forzamos la lectura desde el atributo para evitar la caché de jQuery y obtener siempre los datos más frescos.
+        var cuotas = JSON.parse(button.attr('data-cuotas'));
         var descripcion = button.data('descripcion');
 
         var modal = $(this);
@@ -110,12 +111,12 @@ $(document).ready(function() {
 
         var list = $('<ul class="list-group"></ul>');
         cuotas.forEach(function(cuota) {
-            const selectId = `estado-select-${cuota.id}`;
-            const options = ['Pendiente', 'Pagada', 'No Pagada'];
-            let selectOptions = '';
-            options.forEach(opt => {
-                selectOptions += `<option value="${opt}" ${cuota.estado === opt ? 'selected' : ''}>${opt}</option>`;
-            });
+            const fechaCuota = new Date(cuota.fecha);
+            const hoy = new Date();
+            const inicioMesSiguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+
+            const isEditable = fechaCuota < inicioMesSiguiente;
+            const disabledAttribute = isEditable ? '' : 'disabled';
 
             var listItem = `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -123,8 +124,10 @@ $(document).ready(function() {
                         <strong>Cuota ${cuota.numero_cuota}</strong> - ${new Date(cuota.fecha).toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' })}
                     </span>
                     <strong>$${new Intl.NumberFormat('es-CL').format(cuota.monto_cuota)}</strong>
-                    <select class="form-control form-control-sm estado-select" data-gasto-id="${cuota.id}" data-gasto-padre-id="${gastoPadreId}" data-estado-original="${cuota.estado}" style="width: 120px;">
-                        ${selectOptions}
+                    <select class="custom-select custom-select-sm estado-cuota" data-gasto-id="${cuota.id}" data-gasto-padre-id="${gastoPadreId}" data-estado-original="${cuota.estado}" style="width: 120px;" ${disabledAttribute}>
+                        <option value="Pagada" ${cuota.estado === 'Pagada' ? 'selected' : ''}>Pagada</option>
+                        <option value="Pendiente" ${cuota.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
+                        <option value="No Pagada" ${cuota.estado === 'No Pagada' ? 'selected' : ''}>No Pagada</option>
                     </select>
                 </li>`;
             list.append(listItem);
@@ -134,7 +137,7 @@ $(document).ready(function() {
     });
 
     // Listener para los cambios en el estado de la cuota
-    $(document).on('change', '.estado-select', function() {
+    $(document).on('change', '.estado-cuota', function() {
         const select = $(this);
         const gastoId = select.data('gasto-id');
         const gastoPadreId = select.data('gasto-padre-id');
@@ -157,20 +160,23 @@ $(document).ready(function() {
                 // Si el guardado fue exitoso, actualizamos el estado original para el futuro
                 select.data('estado-original', nuevoEstado);
 
-                // Actualizar el contador de progreso en la tabla principal
-                // Usamos el gastoPadreId para encontrar la fila correcta y actualizar el badge
-                const progressBadge = $(`#gasto-row-${gastoPadreId}`).find('.badge');
+                // Actualizar el contador de progreso en la tabla principal, apuntando al ID específico
+                const progressBadge = $(`#progreso-gasto-${gastoPadreId}`);
                 if (progressBadge.length) {
                     progressBadge.text(data.progreso_texto);
+                }
 
-                    // Actualizar los datos del botón para que el modal refleje el cambio
-                    const button = progressBadge.closest('tr').find('button[data-toggle="modal"]');
-                    const cuotas = button.data('cuotas');
-                    const cuotaIndex = cuotas.findIndex(c => c.id === gastoId);
-                    if (cuotaIndex > -1) {
-                        cuotas[cuotaIndex].estado = nuevoEstado;
-                        button.data('cuotas', cuotas);
-                    }
+                // Actualizamos los datos del botón para que la próxima vez que se abra el modal, esté actualizado.
+                const button = $(`#gasto-row-${gastoPadreId}`).find('button[data-toggle="modal"]');
+                let cuotas = JSON.parse(button.attr('data-cuotas')); // Leer siempre el valor más fresco
+
+                const cuotaIndex = cuotas.findIndex(c => c.id === gastoId);
+                if (cuotaIndex > -1) {
+                    // Usamos la variable 'nuevoEstado' que contiene la selección del usuario.
+                    cuotas[cuotaIndex].estado = nuevoEstado;
+                    
+                    // Re-serializar y actualizar el atributo data-cuotas
+                    button.attr('data-cuotas', JSON.stringify(cuotas));
                 }
 
             } else {

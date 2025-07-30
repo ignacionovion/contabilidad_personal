@@ -81,42 +81,53 @@
     </div>
     @endif
 
-    <div class="card">
-        <div class="card-header">
-            <a href="{{ route('gastos.create') }}" class="btn btn-primary">Registrar Nuevo Gasto</a>
-        </div>
-        <div class="card-body">
-            <table class="table table-bordered">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Monto</th>
-                        <th>Descripción</th>
-                        <th>Categoría</th>
-                        <th>Fecha</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($gastos as $gasto)
-                        <tr>
-                            <td>{{ $gasto->id }}</td>
-                            <td>${{ number_format($gasto->monto, 0, ',', '.') }}</td>
-                            <td>{{ $gasto->descripcion }}</td>
-                            <td>{{ $gasto->categoria->nombre ?? 'Sin categoría' }}</td>
-                            <td>{{ $gasto->fecha }}</td>
-                            <td>
-                                <a href="{{ route('gastos.edit', $gasto) }}" class="btn btn-sm btn-warning">Editar</a>
-                                <form action="{{ route('gastos.destroy', $gasto) }}" method="POST" style="display:inline-block;">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-sm btn-danger">Eliminar</button>
-                                </form>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
+    <!-- Separador y Título para Gastos Variables -->
+    <hr class="my-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Otros Gastos</h2>
+        <a href="{{ route('gastos.create') }}" class="btn btn-success">Añadir Gasto</a>
     </div>
+
+    @forelse($gastos as $mes => $gastosDelMes)
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3 class="card-title font-weight-bold">{{ ucfirst($mes) }}</h3>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-bordered table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">Monto</th>
+                            <th>Descripción</th>
+                            <th style="width: 20%;">Categoría</th>
+                            <th style="width: 15%;">Fecha</th>
+                            <th style="width: 15%;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($gastosDelMes as $gasto)
+                            <tr>
+                                <td>${{ number_format($gasto->monto, 0, ',', '.') }}</td>
+                                <td>{{ $gasto->descripcion }}</td>
+                                <td>{{ $gasto->categoria->nombre ?? 'Sin categoría' }}</td>
+                                <td>{{ $gasto->fecha ? \Carbon\Carbon::parse($gasto->fecha)->format('d/m/Y') : 'No especificada' }}</td>
+                                <td>
+                                    <a href="{{ route('gastos.edit', $gasto->id) }}" class="btn btn-primary btn-sm">Editar</a>
+                                    <form action="{{ route('gastos.destroy', $gasto->id) }}" method="POST" style="display:inline-block;" onsubmit="return confirm('¿Estás seguro de que quieres eliminar este gasto?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn-danger btn-sm">Eliminar</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    @empty
+        <div class="alert alert-info mt-4">
+            No hay otros gastos registrados.
+        </div>
+    @endforelse
 @stop

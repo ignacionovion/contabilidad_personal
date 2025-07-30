@@ -20,31 +20,38 @@ class GastoTarjetaController extends Controller
             abort(403, 'Acceso no autorizado.');
         }
 
-        // Obtener todas las cuotas de la tarjeta y agruparlas por la compra original
-        $gastosPorCompra = GastoTarjeta::where('tarjeta_credito_id', $tarjeta->id)
+        // 1. Obtener TODAS las cuotas de la tarjeta de una sola vez.
+        $todasLasCuotas = GastoTarjeta::where('tarjeta_credito_id', $tarjeta->id)
             ->where('user_id', Auth::id())
             ->orderBy('fecha', 'asc')
-            ->get()
-            ->groupBy('gasto_padre_id');
+            ->get();
 
-        $hoy = Carbon::now();
+        // 2. Agrupar las cuotas por su compra. El ID de la compra es el 'gasto_padre_id' o, si es nulo, el propio 'id'.
+        $gastosAgrupados = $todasLasCuotas->groupBy(function ($item) {
+            return $item->gasto_padre_id ?? $item->id;
+        });
 
-        // Procesar cada grupo para crear un resumen de la compra
-        $gastosParaVista = $gastosPorCompra->map(function ($cuotas, $gasto_padre_id) {
-            $primeraCuota = $cuotas->first();
+        // 3. Procesar cada grupo para crear la vista.
+        $gastosParaVista = $gastosAgrupados->map(function ($cuotas, $idPadre) {
+            $compraPadre = $cuotas->firstWhere('id', $idPadre);
+            
+            // Si por alguna razón no se encuentra el padre (caso improbable), usamos la primera cuota.
+            if (!$compraPadre) {
+                $compraPadre = $cuotas->first();
+            }
 
-            // Contar cuotas por su estado real
             $cuotasPagadas = $cuotas->where('estado', 'Pagada')->count();
+            $totalCuotas = $cuotas->count();
 
             return (object) [
-                'id_representativo' => $gasto_padre_id,
-                'descripcion' => $primeraCuota->descripcion,
+                'id_representativo' => $compraPadre->id,
+                'descripcion' => $compraPadre->descripcion,
                 'monto_total' => $cuotas->sum('monto_cuota'),
-                'monto_cuota' => $primeraCuota->monto_cuota,
-                'total_cuotas' => $primeraCuota->total_cuotas,
+                'monto_cuota' => $compraPadre->monto_cuota,
+                'total_cuotas' => $totalCuotas,
                 'cuotas_pagadas' => $cuotasPagadas,
-                'fecha_compra' => $cuotas->min('fecha'),
-                'cuotas_detalle' => $cuotas->map(function($c) {
+                'fecha_compra' => $compraPadre->fecha,
+                'cuotas_detalle' => $cuotas->sortBy('numero_cuota')->map(function($c) {
                     return [
                         'id'           => $c->id,
                         'numero_cuota' => $c->numero_cuota,
@@ -97,31 +104,31 @@ class GastoTarjetaController extends Controller
         $montoBaseCuota = floor($montoTotal / $totalCuotas);
         $resto = $montoTotal % $totalCuotas;
 
-        $gastoPadre = null;
+        $gastoPadreId = null;
 
-        for ($i = 1; $i <= $totalCuotas; $i++) {
-            $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
-            $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
-            $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
+        DB::transaction(function () use ($totalCuotas, $montoBaseCuota, $resto, $fechaCompra, $tarjeta, $validatedData, &$gastoPadreId) {
+            for ($i = 1; $i <= $totalCuotas; $i++) {
+                $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
+                $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
+                $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
 
-            $gasto = GastoTarjeta::create([
-                'tarjeta_credito_id' => $tarjeta->id,
-                'user_id' => Auth::id(),
-                'descripcion' => $validatedData['descripcion'],
-                'monto_cuota' => $montoCuotaActual,
-                'numero_cuota' => $i,
-                'total_cuotas' => $totalCuotas,
-                'fecha' => $fechaCuota,
-                'gasto_padre_id' => $gastoPadre ? $gastoPadre->id : null,
-                'estado' => $estadoCuota,
-            ]);
+                $gasto = GastoTarjeta::create([
+                    'tarjeta_credito_id' => $tarjeta->id,
+                    'user_id' => Auth::id(),
+                    'descripcion' => $validatedData['descripcion'],
+                    'monto_cuota' => $montoCuotaActual,
+                    'numero_cuota' => $i,
+                    'total_cuotas' => $totalCuotas,
+                    'fecha' => $fechaCuota,
+                    'gasto_padre_id' => $gastoPadreId, // La primera vez será NULL
+                    'estado' => $estadoCuota,
+                ]);
 
-            if ($i == 1) {
-                $gastoPadre = $gasto;
-                $gastoPadre->gasto_padre_id = $gastoPadre->id;
-                $gastoPadre->save();
+                if ($i == 1) {
+                    $gastoPadreId = $gasto->id; // Guardamos el ID del padre para las siguientes cuotas
+                }
             }
-        }
+        });
 
         return redirect()->route('gastos_tarjeta.index', $tarjeta)->with('success', 'Gasto agregado con éxito en ' . $totalCuotas . ' cuota(s).');
     }
@@ -187,44 +194,42 @@ class GastoTarjetaController extends Controller
         
         $tarjetaId = $gastoExistente->tarjeta_credito_id;
 
-        // Eliminar todos los gastos antiguos asociados
-        GastoTarjeta::where('gasto_padre_id', $gasto_padre_id)
-                    ->where('user_id', Auth::id())
-                    ->delete();
+        DB::transaction(function () use ($gasto_padre_id, $validated, $tarjetaId) {
+            // 1. Eliminar todas las cuotas antiguas (hijas y padre)
+            GastoTarjeta::where('id', $gasto_padre_id)->delete(); // Elimina el padre
+            GastoTarjeta::where('gasto_padre_id', $gasto_padre_id)->delete(); // Elimina las hijas
 
-        // Crear los nuevos gastos
-        $montoTotal = (int) str_replace('.', '', $validated['monto']);
-        $totalCuotas = $validated['total_cuotas'];
-        $fechaCompra = Carbon::parse($validated['fecha']);
+            // 2. Crear las nuevas cuotas con la lógica correcta
+            $montoTotal = (int) str_replace('.', '', $validated['monto']);
+            $totalCuotas = $validated['total_cuotas'];
+            $fechaCompra = Carbon::parse($validated['fecha']);
+            $montoBaseCuota = floor($montoTotal / $totalCuotas);
+            $resto = $montoTotal % $totalCuotas;
 
-        $montoBaseCuota = floor($montoTotal / $totalCuotas);
-        $resto = $montoTotal % $totalCuotas;
+            $nuevoGastoPadreId = null;
 
-        $gastoPadre = null;
+            for ($i = 1; $i <= $totalCuotas; $i++) {
+                $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
+                $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
+                $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
 
-        for ($i = 1; $i <= $totalCuotas; $i++) {
-            $montoCuotaActual = ($i == 1) ? $montoBaseCuota + $resto : $montoBaseCuota;
-            $fechaCuota = $fechaCompra->copy()->addMonths($i - 1);
-            $estadoCuota = $fechaCuota->isPast() ? 'Pagada' : 'Pendiente';
+                $gasto = GastoTarjeta::create([
+                    'user_id' => Auth::id(),
+                    'tarjeta_credito_id' => $tarjetaId,
+                    'descripcion' => $validated['descripcion'],
+                    'numero_cuota' => $i,
+                    'total_cuotas' => $totalCuotas, // Se guarda el total correcto en cada cuota
+                    'monto_cuota' => $montoCuotaActual,
+                    'fecha' => $fechaCuota,
+                    'gasto_padre_id' => $nuevoGastoPadreId, // La primera vez es NULL
+                    'estado' => $estadoCuota,
+                ]);
 
-            $nuevoGasto = GastoTarjeta::create([
-                'user_id' => Auth::id(),
-                'tarjeta_credito_id' => $tarjetaId,
-                'descripcion' => $validated['descripcion'],
-                'numero_cuota' => $i,
-                'total_cuotas' => $totalCuotas,
-                'monto_cuota' => $montoCuotaActual,
-                'fecha' => $fechaCuota,
-                'gasto_padre_id' => $gastoPadre ? $gastoPadre->id : null,
-                'estado' => $estadoCuota,
-            ]);
-
-            if ($i == 1) {
-                $gastoPadre = $nuevoGasto; // El primer gasto es el padre
-                $gastoPadre->gasto_padre_id = $gastoPadre->id; // Se apunta a sí mismo
-                $gastoPadre->save();
+                if ($i == 1) {
+                    $nuevoGastoPadreId = $gasto->id; // Guardamos el ID del nuevo padre
+                }
             }
-        }
+        });
 
         return redirect()->route('gastos_tarjeta.index', ['tarjeta' => $tarjetaId])
                          ->with('success', 'Gasto actualizado con éxito.');
@@ -240,6 +245,14 @@ class GastoTarjetaController extends Controller
             return response()->json(['success' => false, 'message' => 'Acción no autorizada.'], 403);
         }
 
+        // REGLA DE NEGOCIO: No se puede cambiar el estado de cuotas de meses futuros.
+        $fechaCuota = Carbon::parse($gasto->fecha);
+        $inicioMesSiguiente = Carbon::now()->addMonth()->startOfMonth();
+
+        if ($fechaCuota->gte($inicioMesSiguiente)) {
+            return response()->json(['success' => false, 'message' => 'No se puede cambiar el estado de cuotas de meses futuros.'], 403);
+        }
+
         $validated = $request->validate([
             'estado' => ['required', 'string', \Illuminate\Validation\Rule::in(['Pagada', 'Pendiente', 'No Pagada'])],
         ]);
@@ -247,10 +260,15 @@ class GastoTarjetaController extends Controller
         $gasto->estado = $validated['estado'];
         $gasto->save();
 
-        // Recalcular el progreso para la interfaz
-        $gastosDelPadre = GastoTarjeta::where('gasto_padre_id', $gasto->gasto_padre_id)->get();
-        $cuotasPagadas = $gastosDelPadre->where('estado', 'Pagada')->count();
-        $totalCuotas = $gastosDelPadre->count();
+        // Recalcular el progreso para la interfaz de forma robusta
+        $idPadre = $gasto->gasto_padre_id ?? $gasto->id;
+        $cuotasDeLaCompra = GastoTarjeta::where(function ($query) use ($idPadre) {
+            $query->where('gasto_padre_id', $idPadre)
+                  ->orWhere('id', $idPadre);
+        })->get();
+
+        $cuotasPagadas = $cuotasDeLaCompra->where('estado', 'Pagada')->count();
+        $totalCuotas = $cuotasDeLaCompra->count();
 
         return response()->json([
             'success' => true,

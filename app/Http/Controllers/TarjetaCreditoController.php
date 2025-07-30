@@ -14,7 +14,9 @@ class TarjetaCreditoController extends Controller
      */
     public function index()
     {
-        $tarjetas = TarjetaCredito::where('user_id', Auth::id())->get();
+                $tarjetas = TarjetaCredito::where('user_id', Auth::id())
+            ->withCount('compras')
+            ->get();
         return view('tarjetas.index', compact('tarjetas'));
     }
 

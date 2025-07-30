@@ -5,18 +5,26 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Ingreso;
+use Carbon\Carbon;
 
 class IngresoController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+        public function index()
     {
         $user = auth()->user();
         $sueldo = Ingreso::where('user_id', $user->id)->where('es_sueldo', true)->first();
-        $ingresos = Ingreso::where('user_id', $user->id)->where('es_sueldo', false)->orderBy('fecha', 'desc')->get();
         
+        $ingresos = Ingreso::where('user_id', $user->id)
+            ->where('es_sueldo', false)
+            ->orderBy('fecha', 'desc')
+            ->get()
+            ->groupBy(function($ingreso) {
+                return Carbon::parse($ingreso->fecha)->translatedFormat('F Y');
+            });
+
         return view('ingresos.index', compact('ingresos', 'sueldo', 'user'));
     }
 

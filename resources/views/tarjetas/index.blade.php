@@ -24,6 +24,7 @@
                         <th>Cupo Total</th>
                         <th>Día de Facturación</th>
                         <th>Día de Pago</th>
+                        <th>Nº de Compras</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -34,6 +35,7 @@
                             <td>${{ number_format($tarjeta->cupo_total, 0, ',', '.') }}</td>
                             <td>{{ $tarjeta->dia_facturacion }}</td>
                             <td>{{ $tarjeta->dia_pago }}</td>
+                            <td>{{ $tarjeta->compras_count }}</td>
                             <td>
                                 <a href="{{ route('gastos_tarjeta.index', ['tarjeta' => $tarjeta->id]) }}" class="btn btn-sm btn-info">Ver Gastos</a>
                                 <a href="{{ route('tarjetas.edit', $tarjeta) }}" class="btn btn-sm btn-warning">Editar</a>

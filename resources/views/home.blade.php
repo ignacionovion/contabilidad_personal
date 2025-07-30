@@ -57,7 +57,7 @@
                 </div>
                 <div class="card-body">
                     <div class="position-relative mb-4">
-                        <canvas id="balance-mensual-chart" height="300"></canvas>
+                        <canvas id="balance-mensual-chart" height="220"></canvas>
                     </div>
                 </div>
             </div>
@@ -71,7 +71,7 @@
                 </div>
                 <div class="card-body">
                     <div class="position-relative mb-4">
-                        <canvas id="gastos-hogar-chart" height="300"></canvas>
+                        <canvas id="gastos-hogar-chart" height="220"></canvas>
                     </div>
                 </div>
             </div>
