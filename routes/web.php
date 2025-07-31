@@ -8,6 +8,7 @@ use App\Http\Controllers\GastoController;
 use App\Http\Controllers\GastoRecurrenteController;
 use App\Http\Controllers\TarjetaCreditoController;
 use App\Http\Controllers\GastoTarjetaController;
+use App\Http\Controllers\ReporteController;
 
 Route::get('/', function () {
     return redirect('/inicio');
@@ -26,6 +27,11 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('gastos-recurrentes', GastoRecurrenteController::class);
     Route::resource('tarjetas', TarjetaCreditoController::class)->names('tarjetas');
     Route::put('gastos_tarjeta/{gasto}/estado', [GastoTarjetaController::class, 'updateEstado'])->name('gastos_tarjeta.update_estado');
+
+    // Rutas para Reportes
+    Route::get('/reportes', [ReporteController::class, 'index'])->name('reportes.index');
+    Route::post('/reportes/descargar', [ReporteController::class, 'descargar'])->name('reportes.descargar');
+
     // Rutas para gastos de tarjeta
     // 'index' y 'create' están anidadas porque dependen de una tarjeta específica
     Route::get('tarjetas/{tarjeta}/gastos', [GastoTarjetaController::class, 'index'])->name('gastos_tarjeta.index');

@@ -336,9 +336,15 @@ return [
             'icon' => 'fas fa-fw fa-file-invoice-dollar',
         ],
         [
-            'text'  => 'Tarjetas de Crédito',
-            'route' => 'tarjetas.index',
-            'icon'  => 'fas fa-fw fa-credit-card',
+            'text'        => 'Tarjetas de Crédito',
+            'url'         => 'tarjetas',
+            'icon'        => 'far fa-fw fa-credit-card',
+        ],
+        ['header' => 'ANÁLISIS'],
+        [
+            'text'        => 'Reportes',
+            'route'         => 'reportes.index',
+            'icon'        => 'fas fa-fw fa-chart-pie',
         ],
         [
             'text'  => 'Cuentas del Hogar',
